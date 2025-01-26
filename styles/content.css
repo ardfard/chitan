@@ -1,0 +1,147 @@
+.llm-suggestion-container {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #333;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px 32px 12px 12px;
+  margin-top: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 300px;
+  width: 100%;
+  z-index: 10000;
+  position: absolute;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.llm-suggestion-container::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-left: 1px solid #ddd;
+  border-top: 1px solid #ddd;
+  transform: rotate(45deg);
+}
+
+.llm-char-count {
+  position: absolute;
+  bottom: -20px;
+  right: 0;
+  font-size: 12px;
+  color: #666;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.3s ease;
+  cursor: help;
+}
+
+.llm-char-count.ready {
+  color: #4CAF50;
+}
+
+.llm-state-icon {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  cursor: help;
+}
+
+/* Tooltip styles */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  right: -10px;
+  margin-bottom: 5px;
+  padding: 7px 12px;
+  width: max-content;
+  max-width: 200px;
+  border-radius: 4px;
+  background: #333;
+  color: white;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 10001;
+}
+
+[data-tooltip]:after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 0;
+  width: 0;
+  border: 5px solid transparent;
+  border-top-color: #333;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 10001;
+}
+
+[data-tooltip]:hover:before,
+[data-tooltip]:hover:after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Spinner animation for loading state */
+.llm-state-icon.loading {
+  animation: spin 1s linear infinite;
+}
+
+.llm-state-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.llm-state-icon.success svg {
+  fill: #4CAF50;
+}
+
+.llm-state-icon.error svg {
+  fill: #d32f2f;
+}
+
+.llm-state-icon.loading svg {
+  fill: #2196F3;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+} 

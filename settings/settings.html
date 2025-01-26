@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="container">
+    <h2>API Key Settings</h2>
+    
+    <div class="api-keys">
+      <div class="api-key-item">
+        <label for="gpt">OpenAI GPT API Key:</label>
+        <input type="password" id="gpt" class="api-key-input" data-model="gpt">
+        <button class="show-hide-btn">Show</button>
+      </div>
+
+      <div class="api-key-item">
+        <label for="claude">Anthropic Claude API Key:</label>
+        <input type="password" id="claude" class="api-key-input" data-model="claude">
+        <button class="show-hide-btn">Show</button>
+      </div>
+
+      <div class="api-key-item">
+        <label for="llama">LLaMA API Key:</label>
+        <input type="password" id="llama" class="api-key-input" data-model="llama">
+        <button class="show-hide-btn">Show</button>
+      </div>
+
+      <div class="api-key-item">
+        <label for="deepseek">DeepSeek API Key:</label>
+        <input type="password" id="deepseek" class="api-key-input" data-model="deepseek">
+        <button class="show-hide-btn">Show</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="save" class="primary-button">Save API Keys</button>
+    </div>
+  </div>
+  <script src="settings.js"></script>
+</body>
+</html> 

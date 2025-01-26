@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="48" cy="48" r="44" fill="#4CAF50"/>
+  
+  <!-- Text lines and cursor symbol -->
+  <rect x="28" y="32" width="40" height="4" rx="2" fill="white"/>
+  <rect x="28" y="46" width="30" height="4" rx="2" fill="white"/>
+  <rect x="28" y="60" width="35" height="4" rx="2" fill="white"/>
+  
+  <!-- Cursor/pen symbol -->
+  <path d="M62 42L68 48L54 62L48 56L62 42Z" fill="white"/>
+  <path d="M46 58L48 56L54 62L52 64L46 58Z" fill="#E0E0E0"/>
+</svg> 

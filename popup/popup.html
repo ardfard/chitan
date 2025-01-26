@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h2>LLM Writing Assistant</h2>
+    
+    <div class="model-selection">
+      <label for="model">Select Model:</label>
+      <select id="model">
+        <option value="gpt">OpenAI GPT</option>
+        <option value="claude">Anthropic Claude</option>
+        <option value="llama">LLaMA</option>
+        <option value="deepseek">DeepSeek</option>
+      </select>
+    </div>
+
+    <div class="settings">
+      <h3>Suggestion Types</h3>
+      <label>
+        <input type="checkbox" id="grammar" checked>
+        Grammar
+      </label>
+      <label>
+        <input type="checkbox" id="style" checked>
+        Style
+      </label>
+      <label>
+        <input type="checkbox" id="structure" checked>
+        Structure
+      </label>
+    </div>
+
+    <div class="actions">
+      <button id="settings" class="secondary-button">API Settings</button>
+      <button id="save">Save Settings</button>
+      <button id="enable" class="active">Enable Assistant</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html> 

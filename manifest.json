@@ -1,0 +1,34 @@
+{
+  "manifest_version": 2,
+  "name": "Chitan - LLM Writing Assistant",
+  "version": "1.0",
+  "description": "A writing assistant powered by various LLM models to improve your writing",
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "<all_urls>"
+  ],
+  "browser_action": {
+    "default_icon": "icons/icon-48.png",
+    "default_title": "Chitan - LLM Writing Assistant",
+    "default_popup": "popup/popup.html"
+  },
+  "options_ui": {
+    "page": "settings/settings.html",
+    "browser_style": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["scripts/content.js"],
+      "css": ["styles/content.css"]
+    }
+  ],
+  "background": {
+    "scripts": ["scripts/background.js"]
+  }
+} 
