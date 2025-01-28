@@ -44,7 +44,8 @@ const ICONS = {
   loading: `<svg viewBox="0 0 24 24"><path d="M12 2A10 10 0 1 0 22 12A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8A8 8 0 0 1 12 20Z" opacity=".5"/><path d="M20 12h2A10 10 0 0 0 12 2V4A8 8 0 0 1 20 12Z"/></svg>`,
   success: `<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`,
   error: `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
-  disabled: `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg>`
+  disabled: `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg>`,
+  waiting: `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.42z"/></svg>`
 };
 
 // Tooltip messages
@@ -53,6 +54,7 @@ const TOOLTIPS = {
   success: 'Suggestions ready',
   error: 'Error occurred while processing',
   disabled: 'AI Assistant is disabled. Click to enable.',
+  waiting: 'Waiting for more text...',
   charCount: {
     notReady: 'Type at least 20 characters to get suggestions',
     ready: 'Text length is sufficient for analysis'
@@ -120,95 +122,20 @@ async function getSuggestions(text) {
       throw new Error('Invalid input text');
     }
 
-    // Get the API key for the current model
     const response = await browser.runtime.sendMessage({
-      type: 'getApiKey',
+      type: 'requestSuggestions',
+      text: text,
       model: settings.model
-    }).catch(error => {
-      throw new Error(`Failed to get API key: ${error.message}`);
     });
 
-    const { apiKey } = response;
-    if (!apiKey) {
-      return 'Please set up your API key in the extension settings.';
+    if (response.error) {
+      throw new Error(response.error);
     }
 
-    // API endpoints and headers for different models
-    const apiConfig = {
-      gpt: {
-        url: 'https://api.openai.com/v1/chat/completions',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: {
-          model: 'gpt-3.5-turbo',
-          messages: [{
-            role: 'system',
-            content: 'You are a helpful writing assistant. Provide brief suggestions for improving grammar, style, and structure.'
-          }, {
-            role: 'user',
-            content: `Please suggest improvements for this text: "${text}"`
-          }]
-        }
-      },
-      claude: {
-        url: 'https://api.anthropic.com/v1/messages',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          model: 'claude-2',
-          messages: [{
-            role: 'user',
-            content: `Please suggest improvements for this text: "${text}"`
-          }]
-        }
-      }
-    };
-
-    const config = apiConfig[settings.model];
-    if (!config) {
-      return 'Selected model is not yet supported.';
-    }
-
-    const fetchResponse = await fetch(config.url, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(config.body)
-    }).catch(error => {
-      throw new Error(`Network error: ${error.message}`);
-    });
-
-    if (!fetchResponse.ok) {
-      const errorData = await fetchResponse.json().catch(() => ({}));
-      throw new Error(`API error (${fetchResponse.status}): ${errorData.error?.message || fetchResponse.statusText}`);
-    }
-
-    const data = await fetchResponse.json().catch(error => {
-      throw new Error(`Failed to parse API response: ${error.message}`);
-    });
-
-    if (!data) {
-      throw new Error('Empty response from API');
-    }
-
-    if (settings.model === 'gpt') {
-      if (!data.choices?.[0]?.message?.content) {
-        throw new Error('Invalid response format from GPT API');
-      }
-      return data.choices[0].message.content;
-    } else {
-      if (!data.content?.[0]?.text) {
-        throw new Error('Invalid response format from API');
-      }
-      return data.content[0].text;
-    }
+    return response.suggestions;
   } catch (error) {
     console.error('Error in getSuggestions:', error);
-    return `Error: ${error.message}. Please check the console for details.`;
+    return error.message || 'Failed to get suggestions';
   }
 }
 
@@ -216,8 +143,8 @@ async function getSuggestions(text) {
 function createTextareaIndicator(target) {
   const indicator = document.createElement('div');
   indicator.className = 'llm-textarea-indicator';
-  indicator.setAttribute('data-tooltip', TOOLTIPS.disabled);
-  indicator.innerHTML = ICONS.disabled;
+  indicator.setAttribute('data-tooltip', TOOLTIPS.waiting);
+  indicator.innerHTML = ICONS.waiting;
   
   document.body.appendChild(indicator);
   positionIndicator(target, indicator);
@@ -225,15 +152,28 @@ function createTextareaIndicator(target) {
   // Add click handler to toggle suggestions
   indicator.addEventListener('click', () => {
     settings.enabled = !settings.enabled;
-    updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
-    if (settings.enabled && target.value.length >= 20) {
-      handleInput({ target });
+    if (settings.enabled) {
+      const state = target.value.length >= 20 ? 'success' : 'waiting';
+      updateIndicatorState(target, state);
+      if (target.value.length >= 20) {
+        handleInput({ target });
+      }
+    } else {
+      updateIndicatorState(target, 'disabled');
+      if (target.suggestionContainer) {
+        target.suggestionContainer.style.display = 'none';
+      }
     }
   });
 
   // Watch for textarea resizing
   const resizeObserver = new ResizeObserver(() => {
     positionIndicator(target, indicator);
+    if (target.suggestionContainer && target.suggestionContainer.style.display !== 'none') {
+      const rect = target.getBoundingClientRect();
+      target.suggestionContainer.style.top = `${rect.bottom + window.scrollY + 5}px`;
+      target.suggestionContainer.style.left = `${rect.left + window.scrollX}px`;
+    }
   });
   resizeObserver.observe(target);
   
@@ -254,18 +194,6 @@ function positionIndicator(target, indicator) {
   indicator.style.top = `${rect.bottom + scrollY - 40}px`;
 }
 
-// Clean up resources for a target
-function cleanupTarget(target) {
-  if (target.textareaIndicator) {
-    target.textareaIndicator.remove();
-    target.textareaIndicator = null;
-  }
-  if (target.resizeObserver) {
-    target.resizeObserver.disconnect();
-    target.resizeObserver = null;
-  }
-}
-
 // Update indicator state
 function updateIndicatorState(target, state, message = '') {
   if (!target.textareaIndicator) return;
@@ -273,45 +201,74 @@ function updateIndicatorState(target, state, message = '') {
   const indicator = target.textareaIndicator;
   
   // Remove all state classes
-  indicator.classList.remove('loading', 'success', 'error', 'disabled');
+  indicator.classList.remove('loading', 'success', 'error', 'disabled', 'waiting');
   
   // Add new state class and icon
   indicator.classList.add(state);
   indicator.innerHTML = ICONS[state] || '';
-  indicator.setAttribute('data-tooltip', TOOLTIPS[state]);
+  indicator.setAttribute('data-tooltip', message || TOOLTIPS[state]);
   
   // Update position in case textarea size changed
   positionIndicator(target, indicator);
 }
 
 // Handle text area input with error handling
-const handleInput = debounce(async (event) => {
+const handleInput = debounce(async ({ target }) => {
+  if (!settings.enabled) return;
+  
+  // Check character count
+  if (target.value.length < 20) {
+    updateIndicatorState(target, 'waiting', TOOLTIPS.charCount.notReady);
+    if (target.suggestionContainer) {
+      target.suggestionContainer.style.display = 'none';
+    }
+    return;
+  }
+
   try {
-    if (!settings.enabled) return;
-
-    const target = event.target;
-    if (!target || !target.value) return;
-
-    const text = target.value;
-    if (text.length < 20) {
-      updateIndicatorState(target, 'disabled', TOOLTIPS.charCount.notReady);
+    // Show loading state
+    updateIndicatorState(target, 'loading', TOOLTIPS.loading);
+    
+    // Get or create suggestion container
+    let suggestionContainer = target.suggestionContainer;
+    if (!suggestionContainer) {
+      suggestionContainer = createSuggestionContainer(target);
+      target.suggestionContainer = suggestionContainer;
+    }
+    suggestionContainer.style.display = 'block';
+    suggestionContainer.innerHTML = '<div class="loading">Loading suggestions...</div>';
+    
+    // Position container below textarea
+    const rect = target.getBoundingClientRect();
+    suggestionContainer.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    suggestionContainer.style.left = `${rect.left + window.scrollX}px`;
+    
+    // Get suggestions using the local function
+    const suggestions = await getSuggestions(target.value);
+    
+    // Handle string response (usually error message)
+    if (typeof suggestions === 'string') {
+      updateIndicatorState(target, 'error', suggestions);
+      suggestionContainer.innerHTML = `<div class="error">${suggestions}</div>`;
       return;
     }
-
-    // Show loading state
-    updateIndicatorState(target, 'loading');
-
-    const suggestions = await getSuggestions(text);
-    if (!suggestions) {
-      throw new Error('No suggestions received');
+    
+    // Update suggestion container with results
+    if (suggestions && suggestions.length > 0) {
+      updateIndicatorState(target, 'success', TOOLTIPS.success);
+      suggestionContainer.innerHTML = suggestions.map(suggestion => 
+        `<div class="suggestion">${suggestion}</div>`
+      ).join('');
+    } else {
+      updateIndicatorState(target, 'error', TOOLTIPS.error.noSuggestions);
+      suggestionContainer.innerHTML = '<div class="error">No suggestions available</div>';
     }
-
-    updateIndicatorState(target, 'success');
-    target.textareaIndicator.setAttribute('data-tooltip', suggestions);
+    
   } catch (error) {
-    console.error('Error in handleInput:', error);
-    if (event.target?.textareaIndicator) {
-      updateIndicatorState(event.target, 'error');
+    console.error('Error getting suggestions:', error);
+    updateIndicatorState(target, 'error', TOOLTIPS.error.general);
+    if (target.suggestionContainer) {
+      target.suggestionContainer.innerHTML = '<div class="error">Error getting suggestions</div>';
     }
   }
 }, 1000);
