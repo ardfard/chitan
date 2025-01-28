@@ -71,16 +71,26 @@ const SYSTEM_PROMPT = `You are an expert writing assistant specializing in impro
 4. Word choice precision and effectiveness
 5. Style consistency and tone appropriateness
 
-Provide specific, actionable suggestions as bullet points.
-Focus on the most significant improvements that will enhance the text quality.
-Be direct but maintain a constructive tone.
-Format your response as a list of clear, concise suggestions.`;
+Format your response as a valid JSON object with the following format:
+{ "results": [
+  {
+    "improvedText": "string",
+    "explanation": [ "string"]
+  },
+  {
+    "improvedText": "string",
+    "explanation": [ "string"]
+  },
+  ...
+]
+}
+
+improvedText is the text that has been changed to improve the text quality.
+explanation is an array of strings, each representing an explanation for the suggestion
+`;
 
 const USER_PROMPT = (text) => 
-  `Review and suggest improvements for this text: "${text}"
-   Provide your suggestions as clear bullet points.
-   Focus only on the most important improvements.
-   Do not include any explanations or commentary.`;
+  `${text}"`;
 
 // Handle messages from content script and popup
 browser.runtime.onMessage.addListener(async (message, sender) => {
@@ -173,27 +183,52 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
         }
 
         // Parse response based on model
-        let suggestions;
+        let suggestions = [];
         if (message.model === 'gpt') {
           if (!data.choices?.[0]?.message?.content) {
             throw new Error('Invalid response format from GPT API');
           }
-          suggestions = data.choices[0].message.content.split('\n').filter(s => s.trim());
+          try {
+            const jsonContent = JSON.parse(data.choices[0].message.content);
+            if (jsonContent.results && Array.isArray(jsonContent.results)) {
+              suggestions = jsonContent.results;
+            } else {
+              throw new Error('Invalid JSON format from GPT API');
+            }
+          } catch (error) {
+            console.error('Error parsing GPT response:', error);
+            throw new Error('Failed to parse GPT response as JSON');
+          }
         } else if (message.model === 'deepseek') {
           if (!data.choices?.[0]?.message?.content) {
             throw new Error('Invalid response format from DeepSeek API');
           }
           try {
             const jsonContent = JSON.parse(data.choices[0].message.content);
-            suggestions = jsonContent.suggestions || [];
+            if (jsonContent.results && Array.isArray(jsonContent.results)) {
+              suggestions = jsonContent.results;
+            } else {
+              throw new Error('Invalid JSON format from DeepSeek API');
+            }
           } catch (error) {
-            suggestions = data.choices[0].message.content.split('\n').filter(s => s.trim());
+            console.error('Error parsing DeepSeek response:', error);
+            throw new Error('Failed to parse DeepSeek response as JSON');
           }
-        } else {
+        } else if (message.model === 'claude') {
           if (!data.content?.[0]?.text) {
-            throw new Error('Invalid response format from API');
+            throw new Error('Invalid response format from Claude API');
           }
-          suggestions = data.content[0].text.split('\n').filter(s => s.trim());
+          try {
+            const jsonContent = JSON.parse(data.content[0].text);
+            if (jsonContent.results && Array.isArray(jsonContent.results)) {
+              suggestions = jsonContent.results;
+            } else {
+              throw new Error('Invalid JSON format from Claude API');
+            }
+          } catch (error) {
+            console.error('Error parsing Claude response:', error);
+            throw new Error('Failed to parse Claude response as JSON');
+          }
         }
 
         return { suggestions };

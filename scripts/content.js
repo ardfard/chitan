@@ -61,6 +61,9 @@ const TOOLTIPS = {
   }
 };
 
+// Add flag to track changes from paste button
+let isApplyingSuggestion = false;
+
 // Create suggestion container
 function createSuggestionContainer(target) {
   const container = document.createElement('div');
@@ -79,6 +82,68 @@ function createSuggestionContainer(target) {
 
   document.body.appendChild(container);
   return container;
+}
+
+// Create suggestion element with paste button
+function createSuggestionElement(suggestion, target) {
+  const suggestionDiv = document.createElement('div');
+  suggestionDiv.className = 'suggestion-item';
+
+  // Create suggestion text element
+  const textDiv = document.createElement('div');
+  textDiv.className = 'suggestion-text';
+  
+  // Handle both string and object formats
+  if (typeof suggestion === 'string') {
+    textDiv.textContent = suggestion;
+  } else if (suggestion.improvedText) {
+    textDiv.innerHTML = `<div class="improved-text">${suggestion.improvedText}</div>`;
+    if (suggestion.explanation && suggestion.explanation.length > 0) {
+      const explanationList = document.createElement('ul');
+      explanationList.className = 'explanation-list';
+      suggestion.explanation.forEach(exp => {
+        const li = document.createElement('li');
+        li.textContent = exp;
+        explanationList.appendChild(li);
+      });
+      textDiv.appendChild(explanationList);
+    }
+  } else {
+    textDiv.textContent = 'Invalid suggestion format';
+    return suggestionDiv;
+  }
+  
+  suggestionDiv.appendChild(textDiv);
+
+  // Create paste button
+  const pasteButton = document.createElement('button');
+  pasteButton.className = 'paste-button';
+  pasteButton.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16">
+    <path d="M19 2h-4.18C14.4.84 13.3 0 12 0S9.6.84 9.18 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 20H5V4h2v3h10V4h2v18z"/>
+  </svg>`;
+  pasteButton.setAttribute('title', 'Apply this suggestion');
+  
+  // Add click handler for paste button
+  pasteButton.addEventListener('click', () => {
+    // Set flag before making changes
+    isApplyingSuggestion = true;
+    
+    // Use improvedText if available, otherwise use the suggestion string
+    const newText = typeof suggestion === 'string' ? suggestion : suggestion.improvedText;
+    target.value = newText;
+    target.focus();
+    
+    // Trigger input event to update any listeners
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    // Reset flag after a short delay to ensure the input event has been processed
+    setTimeout(() => {
+      isApplyingSuggestion = false;
+    }, 1000);
+  });
+
+  suggestionDiv.appendChild(pasteButton);
+  return suggestionDiv;
 }
 
 // Update character count
@@ -212,9 +277,25 @@ function updateIndicatorState(target, state, message = '') {
   positionIndicator(target, indicator);
 }
 
+// Update suggestion container with results
+function updateSuggestionContainer(container, suggestions, target) {
+  container.innerHTML = ''; // Clear previous content
+  
+  if (suggestions.length === 0) {
+    container.innerHTML = '<div class="error">No suggestions available</div>';
+    return;
+  }
+
+  suggestions.forEach(suggestion => {
+    const suggestionElement = createSuggestionElement(suggestion, target);
+    container.appendChild(suggestionElement);
+  });
+}
+
 // Handle text area input with error handling
 const handleInput = debounce(async ({ target }) => {
-  if (!settings.enabled) return;
+  // Skip if we're applying a suggestion or if suggestions are disabled
+  if (isApplyingSuggestion || !settings.enabled) return;
   
   // Check character count
   if (target.value.length < 20) {
@@ -245,6 +326,8 @@ const handleInput = debounce(async ({ target }) => {
     
     // Get suggestions using the local function
     const suggestions = await getSuggestions(target.value);
+
+    console.log('suggestions', suggestions);
     
     // Handle string response (usually error message)
     if (typeof suggestions === 'string') {
@@ -256,9 +339,7 @@ const handleInput = debounce(async ({ target }) => {
     // Update suggestion container with results
     if (suggestions && suggestions.length > 0) {
       updateIndicatorState(target, 'success', TOOLTIPS.success);
-      suggestionContainer.innerHTML = suggestions.map(suggestion => 
-        `<div class="suggestion">${suggestion}</div>`
-      ).join('');
+      updateSuggestionContainer(suggestionContainer, suggestions, target);
     } else {
       updateIndicatorState(target, 'error', TOOLTIPS.error.noSuggestions);
       suggestionContainer.innerHTML = '<div class="error">No suggestions available</div>';

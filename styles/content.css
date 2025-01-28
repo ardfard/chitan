@@ -4,8 +4,8 @@
   color: #333;
   background: white;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 12px 32px 12px 12px;
+  border-radius: 8px;
+  padding: 12px;
   margin-top: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   max-width: 300px;
@@ -41,10 +41,6 @@
   cursor: help;
 }
 
-.llm-char-count.ready {
-  color: #4CAF50;
-}
-
 .llm-state-icon {
   position: absolute;
   right: 8px;
@@ -56,6 +52,21 @@
   justify-content: center;
   opacity: 0.8;
   cursor: help;
+}
+
+/* Make scrollbar less obtrusive */
+.llm-suggestion-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.llm-suggestion-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.llm-suggestion-container::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 4px;
+  border: 2px solid white;
 }
 
 /* Tooltip styles */
@@ -149,33 +160,41 @@
 /* In-textarea indicator */
 .llm-textarea-indicator {
   position: absolute;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 10000;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 2px solid #4CAF50;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  overflow: hidden;
 }
 
 .llm-textarea-indicator:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .llm-textarea-indicator svg {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
+  transition: all 0.2s ease;
 }
 
 .llm-textarea-indicator.loading {
   animation: spin 1s linear infinite;
   border-color: #2196F3;
+  background: #E3F2FD;
+}
+
+.llm-textarea-indicator.success {
+  border-color: #4CAF50;
+  background: #E8F5E9;
 }
 
 .llm-textarea-indicator.success svg {
@@ -184,6 +203,7 @@
 
 .llm-textarea-indicator.error {
   border-color: #d32f2f;
+  background: #FFEBEE;
 }
 
 .llm-textarea-indicator.error svg {
@@ -196,6 +216,7 @@
 
 .llm-textarea-indicator.disabled {
   border-color: #9e9e9e;
+  background: #F5F5F5;
 }
 
 .llm-textarea-indicator.disabled svg {
@@ -204,6 +225,7 @@
 
 .llm-textarea-indicator.waiting {
   border-color: #FFA726;
+  background: #FFF3E0;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -214,14 +236,86 @@
 @keyframes pulse {
   0% {
     transform: scale(1);
-    opacity: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   50% {
     transform: scale(1.05);
-    opacity: 0.8;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
   100% {
     transform: scale(1);
-    opacity: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  gap: 12px;
+  margin: 0 4px;
+}
+
+.suggestion-item:first-child {
+  padding-top: 0;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.suggestion-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #333;
+}
+
+.improved-text {
+  font-weight: 500;
+  color: #1a73e8;
+  margin-bottom: 8px;
+}
+
+.explanation-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #666;
+}
+
+.explanation-list li {
+  margin: 4px 0;
+}
+
+.paste-button {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+  width: 32px;
+  height: 32px;
+}
+
+.paste-button:hover {
+  opacity: 1;
+  background-color: #f0f0f0;
+  transform: scale(1.1);
+}
+
+.paste-button svg {
+  fill: #666;
+}
+
+.paste-button:hover svg {
+  fill: #1a73e8;
 } 
