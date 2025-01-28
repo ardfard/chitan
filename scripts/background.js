@@ -63,28 +63,18 @@ browser.runtime.onInstalled.addListener(async () => {
   }
 });
 
-// AI Model Prompts
-const SYSTEM_PROMPTS = {
-  gpt: `You are a professional writing assistant specializing in improving text quality. Your task is to:
-1. Check for grammar, spelling, and punctuation errors
-2. Suggest improvements for clarity and conciseness
-3. Identify issues with paragraph structure and flow
-4. Recommend better word choices and phrasing
-5. Point out style inconsistencies
+// Unified system prompt for all models
+const SYSTEM_PROMPT = `You are an expert writing assistant specializing in improving text quality. Analyze the text for:
+1. Grammar, spelling, and punctuation accuracy
+2. Clarity and readability of expression
+3. Paragraph structure and logical flow
+4. Word choice precision and effectiveness
+5. Style consistency and tone appropriateness
 
-Provide suggestions in clear, actionable bullet points. Focus on the most important improvements first.
-Be direct and specific, but maintain a constructive tone.`,
-  
-  claude: `As a writing improvement assistant, analyze the given text for:
-- Grammar, spelling, and punctuation accuracy
-- Clarity and conciseness of expression
-- Paragraph structure and logical flow
-- Word choice and phrasing effectiveness
-- Style consistency and appropriateness
-
-Provide specific, actionable suggestions as bullet points, prioritizing the most impactful improvements.
-Be direct but constructive in your feedback.`
-};
+Provide specific, actionable suggestions as bullet points.
+Focus on the most significant improvements that will enhance the text quality.
+Be direct but maintain a constructive tone.
+Format your response as a list of clear, concise suggestions.`;
 
 const USER_PROMPT = (text) => 
   `Review and suggest improvements for this text: "${text}"
@@ -118,7 +108,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
               model: 'gpt-3.5-turbo',
               messages: [{
                 role: 'system',
-                content: SYSTEM_PROMPTS.gpt
+                content: SYSTEM_PROMPT
               }, {
                 role: 'user',
                 content: USER_PROMPT(message.text)
@@ -136,7 +126,25 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
               model: 'claude-2',
               messages: [{
                 role: 'user',
-                content: `${SYSTEM_PROMPTS.claude}\n\n${USER_PROMPT(message.text)}`
+                content: `${SYSTEM_PROMPT}\n\n${USER_PROMPT(message.text)}`
+              }]
+            }
+          },
+          deepseek: {
+            url: 'https://api.deepseek.com/v1/chat/completions',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: {
+              model: 'deepseek-chat',
+              response_format: { type: 'json_object' },
+              messages: [{
+                role: 'system',
+                content: SYSTEM_PROMPT
+              }, {
+                role: 'user',
+                content: USER_PROMPT(message.text)
               }]
             }
           }
@@ -171,6 +179,16 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
             throw new Error('Invalid response format from GPT API');
           }
           suggestions = data.choices[0].message.content.split('\n').filter(s => s.trim());
+        } else if (message.model === 'deepseek') {
+          if (!data.choices?.[0]?.message?.content) {
+            throw new Error('Invalid response format from DeepSeek API');
+          }
+          try {
+            const jsonContent = JSON.parse(data.choices[0].message.content);
+            suggestions = jsonContent.suggestions || [];
+          } catch (error) {
+            suggestions = data.choices[0].message.content.split('\n').filter(s => s.trim());
+          }
         } else {
           if (!data.content?.[0]?.text) {
             throw new Error('Invalid response format from API');
