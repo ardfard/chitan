@@ -10,7 +10,8 @@
   "permissions": [
     "activeTab",
     "storage",
-    "<all_urls>"
+    "<all_urls>",
+    "file:///*"
   ],
   "browser_action": {
     "default_icon": "icons/icon-48.png",
@@ -23,12 +24,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["*://*/*", "file:///*"],
       "js": ["scripts/content.js"],
-      "css": ["styles/content.css"]
+      "css": ["styles/content.css"],
+      "run_at": "document_end"
     }
   ],
   "background": {
-    "scripts": ["scripts/background.js"]
+    "scripts": ["scripts/background.js"],
+    "persistent": false
   }
 } 

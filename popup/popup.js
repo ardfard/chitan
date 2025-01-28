@@ -15,6 +15,7 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('DOMContentLoaded');
   try {
     const modelSelect = document.getElementById('model');
     const saveButton = document.getElementById('save');

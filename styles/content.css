@@ -144,4 +144,60 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* In-textarea indicator */
+.llm-textarea-indicator {
+  position: fixed;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10000;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 2px solid #4CAF50;
+}
+
+.llm-textarea-indicator:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.llm-textarea-indicator svg {
+  width: 20px;
+  height: 20px;
+}
+
+.llm-textarea-indicator.loading {
+  animation: spin 1s linear infinite;
+  border-color: #2196F3;
+}
+
+.llm-textarea-indicator.success svg {
+  fill: #4CAF50;
+}
+
+.llm-textarea-indicator.error {
+  border-color: #d32f2f;
+}
+
+.llm-textarea-indicator.error svg {
+  fill: #d32f2f;
+}
+
+.llm-textarea-indicator.loading svg {
+  fill: #2196F3;
+}
+
+.llm-textarea-indicator.disabled {
+  border-color: #9e9e9e;
+}
+
+.llm-textarea-indicator.disabled svg {
+  fill: #9e9e9e;
 } 

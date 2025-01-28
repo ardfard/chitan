@@ -1,3 +1,5 @@
+console.log('Content script starting to load...');
+
 // Global error handler
 window.addEventListener('error', (event) => {
   console.error('Content Script Error:', {
@@ -15,7 +17,7 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 let settings = {
-  enabled: false,
+  enabled: true,
   model: 'gpt',
   suggestions: {
     grammar: true,
@@ -217,13 +219,7 @@ function createTextareaIndicator(target) {
   indicator.setAttribute('data-tooltip', TOOLTIPS.disabled);
   indicator.innerHTML = ICONS.disabled;
   
-  // Position the indicator relative to the textarea
-  const targetStyle = window.getComputedStyle(target);
-  if (targetStyle.position === 'static') {
-    target.style.position = 'relative';
-  }
-  
-  target.parentElement.appendChild(indicator);
+  document.body.appendChild(indicator);
   positionIndicator(target, indicator);
   
   // Add click handler to toggle suggestions
@@ -234,6 +230,15 @@ function createTextareaIndicator(target) {
       handleInput({ target });
     }
   });
+
+  // Watch for textarea resizing
+  const resizeObserver = new ResizeObserver(() => {
+    positionIndicator(target, indicator);
+  });
+  resizeObserver.observe(target);
+  
+  // Store the observer reference for cleanup
+  target.resizeObserver = resizeObserver;
   
   return indicator;
 }
@@ -241,11 +246,24 @@ function createTextareaIndicator(target) {
 // Position indicator relative to textarea
 function positionIndicator(target, indicator) {
   const rect = target.getBoundingClientRect();
-  const indicatorRect = indicator.getBoundingClientRect();
+  const scrollX = window.scrollX || window.pageXOffset;
+  const scrollY = window.scrollY || window.pageYOffset;
   
   indicator.style.position = 'absolute';
-  indicator.style.left = `${rect.right - indicatorRect.width - 8}px`;
-  indicator.style.top = `${rect.bottom - indicatorRect.height - 8}px`;
+  indicator.style.left = `${rect.right + scrollX - 40}px`;
+  indicator.style.top = `${rect.bottom + scrollY - 40}px`;
+}
+
+// Clean up resources for a target
+function cleanupTarget(target) {
+  if (target.textareaIndicator) {
+    target.textareaIndicator.remove();
+    target.textareaIndicator = null;
+  }
+  if (target.resizeObserver) {
+    target.resizeObserver.disconnect();
+    target.resizeObserver = null;
+  }
 }
 
 // Update indicator state
@@ -300,19 +318,11 @@ const handleInput = debounce(async (event) => {
 
 // Handle focus events
 function handleFocus(event) {
+  console.log('handleFocus', event);
   const target = event.target;
   if (!target.textareaIndicator) {
     target.textareaIndicator = createTextareaIndicator(target);
     updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
-  }
-}
-
-// Handle blur events
-function handleBlur(event) {
-  const target = event.target;
-  if (target.textareaIndicator) {
-    target.textareaIndicator.remove();
-    target.textareaIndicator = null;
   }
 }
 
@@ -334,13 +344,66 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
+// Initialize indicators for all text areas
+function initializeAllTextAreas() {
+  document.querySelectorAll('textarea, input[type="text"]').forEach(target => {
+    if (!target.textareaIndicator) {
+      target.textareaIndicator = createTextareaIndicator(target);
+      updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
+    }
+  });
+}
+
+// Watch for new text areas being added
+function watchForNewTextAreas() {
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          // Check if the node itself is a textarea/input
+          if ((node.tagName === 'TEXTAREA' || 
+              (node.tagName === 'INPUT' && node.type === 'text')) && 
+              !node.textareaIndicator) {
+            node.textareaIndicator = createTextareaIndicator(node);
+            updateIndicatorState(node, settings.enabled ? 'success' : 'disabled');
+          }
+          
+          // Check child elements
+          node.querySelectorAll('textarea, input[type="text"]').forEach(target => {
+            if (!target.textareaIndicator) {
+              target.textareaIndicator = createTextareaIndicator(target);
+              updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
+            }
+          });
+        }
+      });
+      
+      // Handle removed elements
+      mutation.removedNodes.forEach((node) => {
+        if (node.textareaIndicator) {
+          cleanupTarget(node);
+        }
+      });
+    });
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  return observer;
+}
+
 // Initialize with error handling
 try {
+
+
   // Handle input events
   document.addEventListener('input', (event) => {
     try {
       if (event.target.tagName === 'TEXTAREA' || 
-          (event.target.tagName === 'INPUT' && event.target.type === 'text')) {
+          (event.target.tagName === 'INPUT' && event.type === 'text')) {
         handleInput(event);
       }
     } catch (error) {
@@ -348,20 +411,23 @@ try {
     }
   });
 
-  // Handle focus and blur events
+  // Handle focus events (only for newly created text areas that don't have indicators yet)
   document.addEventListener('focus', (event) => {
-    if (event.target.tagName === 'TEXTAREA' || 
-        (event.target.tagName === 'INPUT' && event.target.type === 'text')) {
+    if ((event.target.tagName === 'TEXTAREA' || 
+        (event.target.tagName === 'INPUT' && event.target.type === 'text')) &&
+        !event.target.textareaIndicator) {
       handleFocus(event);
     }
   }, true);
 
-  document.addEventListener('blur', (event) => {
-    if (event.target.tagName === 'TEXTAREA' || 
-        (event.target.tagName === 'INPUT' && event.target.type === 'text')) {
-      handleBlur(event);
-    }
-  }, true);
+  // Update indicator positions on scroll
+  document.addEventListener('scroll', debounce(() => {
+    document.querySelectorAll('textarea, input[type="text"]').forEach(target => {
+      if (target.textareaIndicator) {
+        positionIndicator(target, target.textareaIndicator);
+      }
+    });
+  }, 100), true);
 
   // Update indicator positions on window resize
   window.addEventListener('resize', debounce(() => {
@@ -372,6 +438,7 @@ try {
     });
   }, 100));
 
+  console.log('Content script initialized!');
 } catch (error) {
   console.error('Error initializing content script:', error);
 } 

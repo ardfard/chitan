@@ -23,7 +23,7 @@ browser.runtime.onInstalled.addListener(async () => {
   try {
     const settings = await browser.storage.local.get({
       model: 'gpt',
-      enabled: false,
+      enabled: true,
       suggestions: {
         grammar: true,
         style: true,
