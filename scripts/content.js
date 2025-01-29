@@ -64,6 +64,36 @@ const TOOLTIPS = {
 // Add flag to track changes from paste button
 let isApplyingSuggestion = false;
 
+// Create SVG element safely
+function createSVGElement(pathD) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", pathD);
+  svg.appendChild(path);
+  
+  return svg;
+}
+
+// Create loading element
+function createLoadingElement() {
+  const div = document.createElement('div');
+  div.className = 'loading';
+  div.textContent = 'Loading suggestions...';
+  return div;
+}
+
+// Create error element
+function createErrorElement(message) {
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = message;
+  return div;
+}
+
 // Create suggestion container
 function createSuggestionContainer(target) {
   const container = document.createElement('div');
@@ -97,7 +127,11 @@ function createSuggestionElement(suggestion, target) {
   if (typeof suggestion === 'string') {
     textDiv.textContent = suggestion;
   } else if (suggestion.improvedText) {
-    textDiv.innerHTML = `<div class="improved-text">${suggestion.improvedText}</div>`;
+    const improvedTextDiv = document.createElement('div');
+    improvedTextDiv.className = 'improved-text';
+    improvedTextDiv.textContent = suggestion.improvedText;
+    textDiv.appendChild(improvedTextDiv);
+
     if (suggestion.explanation && suggestion.explanation.length > 0) {
       const explanationList = document.createElement('ul');
       explanationList.className = 'explanation-list';
@@ -118,10 +152,11 @@ function createSuggestionElement(suggestion, target) {
   // Create paste button
   const pasteButton = document.createElement('button');
   pasteButton.className = 'paste-button';
-  pasteButton.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16">
-    <path d="M19 2h-4.18C14.4.84 13.3 0 12 0S9.6.84 9.18 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 20H5V4h2v3h10V4h2v18z"/>
-  </svg>`;
   pasteButton.setAttribute('title', 'Apply this suggestion');
+  
+  // Add SVG to paste button
+  const svg = createSVGElement("M19 2h-4.18C14.4.84 13.3 0 12 0S9.6.84 9.18 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 20H5V4h2v3h10V4h2v18z");
+  pasteButton.appendChild(svg);
   
   // Add click handler for paste button
   pasteButton.addEventListener('click', () => {
@@ -279,10 +314,11 @@ function updateIndicatorState(target, state, message = '') {
 
 // Update suggestion container with results
 function updateSuggestionContainer(container, suggestions, target) {
-  container.innerHTML = ''; // Clear previous content
+  // Clear previous content
+  container.textContent = '';
   
   if (suggestions.length === 0) {
-    container.innerHTML = '<div class="error">No suggestions available</div>';
+    container.appendChild(createErrorElement('No suggestions available'));
     return;
   }
 
@@ -317,7 +353,8 @@ const handleInput = debounce(async ({ target }) => {
       target.suggestionContainer = suggestionContainer;
     }
     suggestionContainer.style.display = 'block';
-    suggestionContainer.innerHTML = '<div class="loading">Loading suggestions...</div>';
+    suggestionContainer.textContent = '';
+    suggestionContainer.appendChild(createLoadingElement());
     
     // Position container below textarea
     const rect = target.getBoundingClientRect();
@@ -332,7 +369,8 @@ const handleInput = debounce(async ({ target }) => {
     // Handle string response (usually error message)
     if (typeof suggestions === 'string') {
       updateIndicatorState(target, 'error', suggestions);
-      suggestionContainer.innerHTML = `<div class="error">${suggestions}</div>`;
+      suggestionContainer.textContent = '';
+      suggestionContainer.appendChild(createErrorElement(suggestions));
       return;
     }
     
@@ -342,14 +380,16 @@ const handleInput = debounce(async ({ target }) => {
       updateSuggestionContainer(suggestionContainer, suggestions, target);
     } else {
       updateIndicatorState(target, 'error', TOOLTIPS.error.noSuggestions);
-      suggestionContainer.innerHTML = '<div class="error">No suggestions available</div>';
+      suggestionContainer.textContent = '';
+      suggestionContainer.appendChild(createErrorElement('No suggestions available'));
     }
     
   } catch (error) {
     console.error('Error getting suggestions:', error);
     updateIndicatorState(target, 'error', TOOLTIPS.error.general);
     if (target.suggestionContainer) {
-      target.suggestionContainer.innerHTML = '<div class="error">Error getting suggestions</div>';
+      suggestionContainer.textContent = '';
+      suggestionContainer.appendChild(createErrorElement('Error getting suggestions'));
     }
   }
 }, 1000);

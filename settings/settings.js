@@ -104,13 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   } catch (error) {
     console.error('Error initializing settings:', error);
-    document.body.innerHTML = `
-      <div class="error-container">
-        <h3>Error Initializing Settings</h3>
-        <p>${error.message}</p>
-        <button onclick="window.location.reload()">Retry</button>
-      </div>
-    `;
+    showErrorContainer(error.message);
   }
 });
 
@@ -153,4 +147,27 @@ function showErrorMessage(parentElement, message) {
     errorMessage.classList.remove('show');
     setTimeout(() => errorMessage.remove(), 300);
   }, 5000);
+}
+
+// Replace innerHTML error container with safe DOM manipulation
+function showErrorContainer(message) {
+  const container = document.createElement('div');
+  container.className = 'error-container';
+  
+  const heading = document.createElement('h3');
+  heading.textContent = 'Error Initializing Settings';
+  container.appendChild(heading);
+  
+  const text = document.createElement('p');
+  text.textContent = message;
+  container.appendChild(text);
+  
+  const button = document.createElement('button');
+  button.textContent = 'Retry';
+  button.onclick = () => window.location.reload();
+  container.appendChild(button);
+  
+  // Clear and append
+  document.body.textContent = '';
+  document.body.appendChild(container);
 } 

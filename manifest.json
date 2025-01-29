@@ -1,18 +1,13 @@
 {
   "manifest_version": 2,
   "name": "Chitan - LLM Writing Assistant",
-  "version": "1.0",
+  "version": "0.1",
   "description": "A writing assistant powered by various LLM models to improve your writing",
   "icons": {
     "48": "icons/icon-48.png",
     "96": "icons/icon-96.png"
   },
-  "permissions": [
-    "activeTab",
-    "storage",
-    "<all_urls>",
-    "file:///*"
-  ],
+  "permissions": ["activeTab", "storage", "<all_urls>"],
   "browser_action": {
     "default_icon": "icons/icon-48.png",
     "default_title": "Chitan - LLM Writing Assistant",
@@ -24,7 +19,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*/*", "file:///*"],
+      "matches": ["*://*/*"],
       "js": ["scripts/content.js"],
       "css": ["styles/content.css"],
       "run_at": "document_end"
@@ -33,5 +28,10 @@
   "background": {
     "scripts": ["scripts/background.js"],
     "persistent": false
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "chitan@ngublag.com"
+    }
   }
-} 
+}
