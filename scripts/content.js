@@ -471,19 +471,96 @@ function isValidInputElement(element) {
   }
 
   // Check for contenteditable div
-  if (element.getAttribute('contenteditable') === 'true') {
+  if (element.getAttribute('contenteditable') === 'true' ||
+      element.getAttribute('g_editable') === 'true') {
     return true;
   }
 
-  // Check for specific Twitter editor div
+  // Check for specific Twitter editor div (Draft.js)
   if (element.getAttribute('data-block') === 'true' && 
       element.closest('[data-contents="true"]')) {
     return true;
   }
 
   // Check for Gmail composer
-  if (element.classList.contains('editable') && 
-      element.getAttribute('role') === 'textbox') {
+  if ((element.classList.contains('editable') && element.getAttribute('role') === 'textbox') ||
+      element.classList.contains('Am') && element.classList.contains('Al')) {
+    return true;
+  }
+
+  // Check for Medium editor
+  if (element.getAttribute('data-gramm') === 'false' && 
+      element.getAttribute('contenteditable') === 'true') {
+    return true;
+  }
+
+  // Check for Notion editor
+  if (element.classList.contains('notranslate') && 
+      element.getAttribute('contenteditable') === 'true') {
+    return true;
+  }
+
+  // Check for WordPress Gutenberg editor
+  if (element.classList.contains('block-editor-rich-text__editable') ||
+      element.classList.contains('wp-block-paragraph')) {
+    return true;
+  }
+
+  // Check for Google Docs
+  if (element.classList.contains('kix-lineview') ||
+      element.classList.contains('docs-texteventtarget-iframe')) {
+    return true;
+  }
+
+  // Check for Slack input
+  if (element.getAttribute('data-qa') === 'message_input' ||
+      element.classList.contains('ql-editor')) {
+    return true;
+  }
+
+  // Check for Discord input
+  if (element.classList.contains('markup-2BOw-j') ||
+      element.classList.contains('editor-H2NA06')) {
+    return true;
+  }
+
+  // Check for LinkedIn post editor
+  if (element.classList.contains('editor-content') ||
+      element.classList.contains('mentions-texteditor')) {
+    return true;
+  }
+
+  // Check for Facebook post/comment input
+  if (element.getAttribute('role') === 'textbox' &&
+      (element.getAttribute('aria-label')?.includes('Write') ||
+       element.getAttribute('aria-label')?.includes('Comment'))) {
+    return true;
+  }
+
+  // Check for Jira/Confluence editor
+  if (element.classList.contains('ProseMirror') ||
+      element.classList.contains('ak-editor-content-area')) {
+    return true;
+  }
+
+  // Check for Monaco editor (VS Code web, GitHub web editor)
+  if (element.classList.contains('monaco-editor') ||
+      element.classList.contains('react-monaco-editor-container')) {
+    return true;
+  }
+
+  // Check for generic rich text editors
+  if (element.classList.contains('ql-editor') || // Quill
+      element.classList.contains('tox-edit-area') || // TinyMCE
+      element.classList.contains('jodit-wysiwyg') || // Jodit
+      element.classList.contains('fr-element') || // Froala
+      element.classList.contains('cke_editable') || // CKEditor
+      element.classList.contains('trumbowyg-editor')) { // Trumbowyg
+    return true;
+  }
+
+  // Check for any element with role="textbox"
+  if (element.getAttribute('role') === 'textbox') {
     return true;
   }
 
@@ -497,8 +574,20 @@ function getElementText(element) {
     return element.value;
   }
 
+  // For Google Docs
+  if (element.classList.contains('kix-lineview')) {
+    const textElements = element.querySelectorAll('.kix-wordhtmlgenerator-word-node');
+    return Array.from(textElements).map(el => el.textContent).join('');
+  }
+
+  // For Monaco editor
+  if (element.classList.contains('monaco-editor')) {
+    const lines = element.querySelectorAll('.view-line');
+    return Array.from(lines).map(line => line.textContent).join('\n');
+  }
+
   // For contenteditable and other div-based editors
-  return element.textContent;
+  return element.textContent || element.innerText || '';
 }
 
 // Helper function to set element's text content
@@ -506,10 +595,37 @@ function setElementText(element, text) {
   if (element.tagName === 'TEXTAREA' || 
       (element.tagName === 'INPUT' && element.type === 'text')) {
     element.value = text;
-  } else {
-    // For contenteditable and other div-based editors
-    element.textContent = text;
+    return;
   }
+
+  // For Google Docs (readonly, can't set text)
+  if (element.classList.contains('kix-lineview')) {
+    console.warn('Cannot set text in Google Docs editor');
+    return;
+  }
+
+  // For Monaco editor (readonly, can't set text)
+  if (element.classList.contains('monaco-editor')) {
+    console.warn('Cannot set text in Monaco editor');
+    return;
+  }
+
+  // For contenteditable and other div-based editors
+  if (element.getAttribute('contenteditable') === 'true') {
+    element.textContent = text;
+  } else {
+    // Try to set text content in the most compatible way
+    if ('value' in element) {
+      element.value = text;
+    } else if ('textContent' in element) {
+      element.textContent = text;
+    } else {
+      element.innerText = text;
+    }
+  }
+
+  // Dispatch input event to trigger any listeners
+  element.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // Handle text area input with error handling
