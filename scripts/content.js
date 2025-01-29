@@ -328,72 +328,6 @@ function updateSuggestionContainer(container, suggestions, target) {
   });
 }
 
-// Handle text area input with error handling
-const handleInput = debounce(async ({ target }) => {
-  // Skip if we're applying a suggestion or if suggestions are disabled
-  if (isApplyingSuggestion || !settings.enabled) return;
-  
-  // Check character count
-  if (target.value.length < 20) {
-    updateIndicatorState(target, 'waiting', TOOLTIPS.charCount.notReady);
-    if (target.suggestionContainer) {
-      target.suggestionContainer.style.display = 'none';
-    }
-    return;
-  }
-
-  try {
-    // Show loading state
-    updateIndicatorState(target, 'loading', TOOLTIPS.loading);
-    
-    // Get or create suggestion container
-    let suggestionContainer = target.suggestionContainer;
-    if (!suggestionContainer) {
-      suggestionContainer = createSuggestionContainer(target);
-      target.suggestionContainer = suggestionContainer;
-    }
-    suggestionContainer.style.display = 'block';
-    suggestionContainer.textContent = '';
-    suggestionContainer.appendChild(createLoadingElement());
-    
-    // Position container below textarea
-    const rect = target.getBoundingClientRect();
-    suggestionContainer.style.top = `${rect.bottom + window.scrollY + 5}px`;
-    suggestionContainer.style.left = `${rect.left + window.scrollX}px`;
-    
-    // Get suggestions using the local function
-    const suggestions = await getSuggestions(target.value);
-
-    console.log('suggestions', suggestions);
-    
-    // Handle string response (usually error message)
-    if (typeof suggestions === 'string') {
-      updateIndicatorState(target, 'error', suggestions);
-      suggestionContainer.textContent = '';
-      suggestionContainer.appendChild(createErrorElement(suggestions));
-      return;
-    }
-    
-    // Update suggestion container with results
-    if (suggestions && suggestions.length > 0) {
-      updateIndicatorState(target, 'success', TOOLTIPS.success);
-      updateSuggestionContainer(suggestionContainer, suggestions, target);
-    } else {
-      updateIndicatorState(target, 'error', TOOLTIPS.error.noSuggestions);
-      suggestionContainer.textContent = '';
-      suggestionContainer.appendChild(createErrorElement('No suggestions available'));
-    }
-    
-  } catch (error) {
-    console.error('Error getting suggestions:', error);
-    updateIndicatorState(target, 'error', TOOLTIPS.error.general);
-    if (target.suggestionContainer) {
-      suggestionContainer.textContent = '';
-      suggestionContainer.appendChild(createErrorElement('Error getting suggestions'));
-    }
-  }
-}, 1000);
-
 // Handle focus events
 function handleFocus(event) {
   console.log('handleFocus', event);
@@ -424,8 +358,10 @@ browser.runtime.onMessage.addListener((message) => {
 
 // Initialize indicators for all text areas
 function initializeAllTextAreas() {
-  document.querySelectorAll('textarea, input[type="text"]').forEach(target => {
-    if (!target.textareaIndicator) {
+  // Select all potential input elements
+  const selector = 'textarea, input[type="text"], [contenteditable="true"], [data-contents="true"] [data-block="true"], .editable[role="textbox"]';
+  document.querySelectorAll(selector).forEach(target => {
+    if (isValidInputElement(target) && !target.textareaIndicator) {
       target.textareaIndicator = createTextareaIndicator(target);
       updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
     }
@@ -438,17 +374,16 @@ function watchForNewTextAreas() {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          // Check if the node itself is a textarea/input
-          if ((node.tagName === 'TEXTAREA' || 
-              (node.tagName === 'INPUT' && node.type === 'text')) && 
-              !node.textareaIndicator) {
+          // Check if the node itself is a valid input element
+          if (isValidInputElement(node) && !node.textareaIndicator) {
             node.textareaIndicator = createTextareaIndicator(node);
             updateIndicatorState(node, settings.enabled ? 'success' : 'disabled');
           }
           
           // Check child elements
-          node.querySelectorAll('textarea, input[type="text"]').forEach(target => {
-            if (!target.textareaIndicator) {
+          const selector = 'textarea, input[type="text"], [contenteditable="true"], [data-contents="true"] [data-block="true"], .editable[role="textbox"]';
+          node.querySelectorAll(selector).forEach(target => {
+            if (isValidInputElement(target) && !target.textareaIndicator) {
               target.textareaIndicator = createTextareaIndicator(target);
               updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
             }
@@ -475,32 +410,35 @@ function watchForNewTextAreas() {
 
 // Initialize with error handling
 try {
+  // Initialize all text areas and contenteditable elements
+  initializeAllTextAreas();
 
+  // Watch for new elements
+  const observer = watchForNewTextAreas();
 
-  // Handle input events
+  // Handle input events for all text input types
   document.addEventListener('input', (event) => {
     try {
-      if (event.target.tagName === 'TEXTAREA' || 
-          (event.target.tagName === 'INPUT' && event.type === 'text')) {
-        handleInput(event);
+      const target = event.target;
+      if (isValidInputElement(target)) {
+        handleInput({ target });
       }
     } catch (error) {
       console.error('Error in input event handler:', error);
     }
   });
 
-  // Handle focus events (only for newly created text areas that don't have indicators yet)
+  // Handle focus events for new elements
   document.addEventListener('focus', (event) => {
-    if ((event.target.tagName === 'TEXTAREA' || 
-        (event.target.tagName === 'INPUT' && event.target.type === 'text')) &&
-        !event.target.textareaIndicator) {
-      handleFocus(event);
+    const target = event.target;
+    if (isValidInputElement(target) && !target.textareaIndicator) {
+      handleFocus({ target });
     }
   }, true);
 
   // Update indicator positions on scroll
   document.addEventListener('scroll', debounce(() => {
-    document.querySelectorAll('textarea, input[type="text"]').forEach(target => {
+    document.querySelectorAll('textarea, [contenteditable="true"], input[type="text"]').forEach(target => {
       if (target.textareaIndicator) {
         positionIndicator(target, target.textareaIndicator);
       }
@@ -509,7 +447,7 @@ try {
 
   // Update indicator positions on window resize
   window.addEventListener('resize', debounce(() => {
-    document.querySelectorAll('textarea, input[type="text"]').forEach(target => {
+    document.querySelectorAll('textarea, [contenteditable="true"], input[type="text"]').forEach(target => {
       if (target.textareaIndicator) {
         positionIndicator(target, target.textareaIndicator);
       }
@@ -519,4 +457,125 @@ try {
   console.log('Content script initialized!');
 } catch (error) {
   console.error('Error initializing content script:', error);
-} 
+}
+
+// Helper function to check if an element is a valid input element
+function isValidInputElement(element) {
+  // Check if element is null or undefined
+  if (!element) return false;
+
+  // Check for textarea and text input
+  if (element.tagName === 'TEXTAREA' || 
+      (element.tagName === 'INPUT' && element.type === 'text')) {
+    return true;
+  }
+
+  // Check for contenteditable div
+  if (element.getAttribute('contenteditable') === 'true') {
+    return true;
+  }
+
+  // Check for specific Twitter editor div
+  if (element.getAttribute('data-block') === 'true' && 
+      element.closest('[data-contents="true"]')) {
+    return true;
+  }
+
+  // Check for Gmail composer
+  if (element.classList.contains('editable') && 
+      element.getAttribute('role') === 'textbox') {
+    return true;
+  }
+
+  return false;
+}
+
+// Helper function to get element's text content
+function getElementText(element) {
+  if (element.tagName === 'TEXTAREA' || 
+      (element.tagName === 'INPUT' && element.type === 'text')) {
+    return element.value;
+  }
+
+  // For contenteditable and other div-based editors
+  return element.textContent;
+}
+
+// Helper function to set element's text content
+function setElementText(element, text) {
+  if (element.tagName === 'TEXTAREA' || 
+      (element.tagName === 'INPUT' && element.type === 'text')) {
+    element.value = text;
+  } else {
+    // For contenteditable and other div-based editors
+    element.textContent = text;
+  }
+}
+
+// Handle text area input with error handling
+const handleInput = debounce(async ({ target }) => {
+  // Skip if we're applying a suggestion or if suggestions are disabled
+  if (isApplyingSuggestion || !settings.enabled) return;
+  
+  const text = getElementText(target);
+  
+  // Check character count
+  if (text.length < 20) {
+    updateIndicatorState(target, 'waiting', TOOLTIPS.charCount.notReady);
+    if (target.suggestionContainer) {
+      target.suggestionContainer.style.display = 'none';
+    }
+    return;
+  }
+
+  try {
+    // Show loading state
+    updateIndicatorState(target, 'loading', TOOLTIPS.loading);
+    
+    // Get or create suggestion container
+    let suggestionContainer = target.suggestionContainer;
+    if (!suggestionContainer) {
+      suggestionContainer = createSuggestionContainer(target);
+      target.suggestionContainer = suggestionContainer;
+    }
+    suggestionContainer.style.display = 'block';
+    suggestionContainer.textContent = '';
+    suggestionContainer.appendChild(createLoadingElement());
+    
+    // Position container below textarea
+    const rect = target.getBoundingClientRect();
+    suggestionContainer.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    suggestionContainer.style.left = `${rect.left + window.scrollX}px`;
+    
+    // Get suggestions using the local function
+    const suggestions = await getSuggestions(text);
+
+    console.log('suggestions', suggestions);
+    
+    // Handle string response (usually error message)
+    if (typeof suggestions === 'string') {
+      updateIndicatorState(target, 'error', suggestions);
+      suggestionContainer.textContent = '';
+      suggestionContainer.appendChild(createErrorElement(suggestions));
+      return;
+    }
+    
+    // Update suggestion container with results
+    if (suggestions && suggestions.length > 0) {
+      updateIndicatorState(target, 'success', TOOLTIPS.success);
+      updateSuggestionContainer(suggestionContainer, suggestions, target);
+    } else {
+      updateIndicatorState(target, 'error', TOOLTIPS.error.noSuggestions);
+      suggestionContainer.textContent = '';
+      suggestionContainer.appendChild(createErrorElement('No suggestions available'));
+    }
+    
+  } catch (error) {
+    console.error('Error getting suggestions:', error);
+    updateIndicatorState(target, 'error', TOOLTIPS.error.general);
+    if (target.suggestionContainer) {
+      suggestionContainer.textContent = '';
+      suggestionContainer.appendChild(createErrorElement('Error getting suggestions'));
+    }
+  }
+}, 1000); 
