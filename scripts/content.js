@@ -1,3 +1,4 @@
+import { debounce } from './utils';
 console.log('Content script starting to load...');
 
 // Global error handler
@@ -25,19 +26,6 @@ let settings = {
     structure: true
   }
 };
-
-// Debounce function to limit API calls
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
 
 // SVG Icons for different states
 const ICONS = {
@@ -111,7 +99,36 @@ function createSuggestionContainer(target) {
   container.appendChild(charCount);
 
   document.body.appendChild(container);
+  
+  // Position the container relative to the target
+  positionContainer(target, container);
+  
+  // Store reference to container on target
+  target.suggestionContainer = container;
+  
   return container;
+}
+
+// Position container relative to target
+function positionContainer(target, container) {
+  if (!target || !container) return;
+
+  const updatePosition = () => {
+    const rect = target.getBoundingClientRect();
+    const scrollX = window.scrollX || window.pageXOffset;
+    const scrollY = window.scrollY || window.pageYOffset;
+
+    container.style.top = `${rect.bottom + scrollY + 5}px`;
+    container.style.left = `${rect.left + scrollX}px`;
+    container.style.width = `${rect.width}px`;
+  };
+
+  // Update position immediately
+  updatePosition();
+
+  // Update position on scroll and resize
+  window.addEventListener('scroll', updatePosition, true);
+  window.addEventListener('resize', updatePosition);
 }
 
 // Create suggestion element with paste button
@@ -163,17 +180,31 @@ function createSuggestionElement(suggestion, target) {
     // Set flag before making changes
     isApplyingSuggestion = true;
     
-    // Use improvedText if available, otherwise use the suggestion string
-    const newText = typeof suggestion === 'string' ? suggestion : suggestion.improvedText;
-    target.value = newText;
-    target.focus();
-    
-    // Trigger input event to update any listeners
-    target.dispatchEvent(new Event('input', { bubbles: true }));
-    
-    // Reset flag after a short delay to ensure the input event has been processed
-    setTimeout(() => {
-      isApplyingSuggestion = false;
+    try {
+      // Get the text to apply
+      const newText = typeof suggestion === 'string' ? suggestion : suggestion.improvedText;
+      
+      // Set the text using our helper function
+      setElementText(target, newText);
+      
+      // Update UI state
+      if (target.suggestionContainer) {
+        updateStateIcon(target.suggestionContainer, 'success', 'Suggestion applied');
+      }
+      
+      // Hide suggestion container after successful paste
+      if (target.suggestionContainer) {
+        target.suggestionContainer.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Error applying suggestion:', error);
+      if (target.suggestionContainer) {
+        updateStateIcon(target.suggestionContainer, 'error', 'Failed to apply suggestion');
+      }
+    } finally {
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isApplyingSuggestion = false;
     }, 1000);
   });
 
@@ -181,18 +212,33 @@ function createSuggestionElement(suggestion, target) {
   return suggestionDiv;
 }
 
-// Update character count
+// Update character count and indicator state
 function updateCharCount(target) {
   if (!target.suggestionContainer) return;
 
   const charCount = target.suggestionContainer.querySelector('.llm-char-count');
   if (!charCount) return;
 
-  const count = target.value.length;
+  const text = getElementText(target);
+  const count = text ? text.length : 0;
   const isReady = count >= 20;
+  
   charCount.textContent = `${count}/20 characters`;
   charCount.classList.toggle('ready', isReady);
   charCount.setAttribute('data-tooltip', TOOLTIPS.charCount[isReady ? 'ready' : 'notReady']);
+
+  // Update indicator state based on character count
+  if (target.indicator) {
+    if (!settings.enabled) {
+      updateStateIcon(target.indicator, 'disabled');
+    } else if (isApplyingSuggestion) {
+      updateStateIcon(target.indicator, 'success');
+    } else if (count < 20) {
+      updateStateIcon(target.indicator, 'waiting');
+    } else {
+      updateStateIcon(target.indicator, 'ready');
+    }
+  }
 }
 
 // Update state icon
@@ -247,69 +293,35 @@ function createTextareaIndicator(target) {
   indicator.innerHTML = ICONS.waiting;
   
   document.body.appendChild(indicator);
+  
+  // Position the indicator
   positionIndicator(target, indicator);
   
-  // Add click handler to toggle suggestions
-  indicator.addEventListener('click', () => {
-    settings.enabled = !settings.enabled;
-    if (settings.enabled) {
-      const state = target.value.length >= 20 ? 'success' : 'waiting';
-      updateIndicatorState(target, state);
-      if (target.value.length >= 20) {
-        handleInput({ target });
-      }
-    } else {
-      updateIndicatorState(target, 'disabled');
-      if (target.suggestionContainer) {
-        target.suggestionContainer.style.display = 'none';
-      }
-    }
-  });
-
-  // Watch for textarea resizing
-  const resizeObserver = new ResizeObserver(() => {
-    positionIndicator(target, indicator);
-    if (target.suggestionContainer && target.suggestionContainer.style.display !== 'none') {
-      const rect = target.getBoundingClientRect();
-      target.suggestionContainer.style.top = `${rect.bottom + window.scrollY + 5}px`;
-      target.suggestionContainer.style.left = `${rect.left + window.scrollX}px`;
-    }
-  });
-  resizeObserver.observe(target);
-  
-  // Store the observer reference for cleanup
-  target.resizeObserver = resizeObserver;
+  // Store reference to indicator on target
+  target.indicator = indicator;
   
   return indicator;
 }
 
-// Position indicator relative to textarea
+// Position indicator relative to target
 function positionIndicator(target, indicator) {
-  const rect = target.getBoundingClientRect();
-  const scrollX = window.scrollX || window.pageXOffset;
-  const scrollY = window.scrollY || window.pageYOffset;
-  
-  indicator.style.position = 'absolute';
-  indicator.style.left = `${rect.right + scrollX - 40}px`;
-  indicator.style.top = `${rect.bottom + scrollY - 40}px`;
-}
+  if (!target || !indicator) return;
 
-// Update indicator state
-function updateIndicatorState(target, state, message = '') {
-  if (!target.textareaIndicator) return;
-  
-  const indicator = target.textareaIndicator;
-  
-  // Remove all state classes
-  indicator.classList.remove('loading', 'success', 'error', 'disabled', 'waiting');
-  
-  // Add new state class and icon
-  indicator.classList.add(state);
-  indicator.innerHTML = ICONS[state] || '';
-  indicator.setAttribute('data-tooltip', message || TOOLTIPS[state]);
-  
-  // Update position in case textarea size changed
-  positionIndicator(target, indicator);
+  const updatePosition = () => {
+    const rect = target.getBoundingClientRect();
+    const scrollX = window.scrollX || window.pageXOffset;
+    const scrollY = window.scrollY || window.pageYOffset;
+
+    indicator.style.top = `${rect.top + scrollY + 5}px`;
+    indicator.style.right = `${document.documentElement.clientWidth - (rect.right + scrollX) + 5}px`;
+  };
+
+  // Update position immediately
+  updatePosition();
+
+  // Update position on scroll and resize
+  window.addEventListener('scroll', updatePosition, true);
+  window.addEventListener('resize', updatePosition);
 }
 
 // Update suggestion container with results
@@ -328,14 +340,127 @@ function updateSuggestionContainer(container, suggestions, target) {
   });
 }
 
+// Handle input events
+function handleInput(event) {
+  const target = event.target;
+  
+  // Skip if we're currently applying a suggestion
+  if (isApplyingSuggestion) return;
+  
+  // Skip if not a valid input element
+  if (!isValidInputElement(target)) return;
+  
+  // Create container and indicator if they don't exist
+  if (!target.suggestionContainer) {
+    target.suggestionContainer = createSuggestionContainer(target);
+  }
+  if (!target.indicator) {
+    target.indicator = createTextareaIndicator(target);
+  }
+  
+  // Show container and indicator
+  target.suggestionContainer.style.display = 'block';
+  target.indicator.style.display = 'block';
+  
+  // Update character count
+  updateCharCount(target);
+  
+  // Get text content
+  const text = getElementText(target);
+  
+  // Skip if text is too short
+  if (!text || text.length < 20) {
+    if (target.suggestionContainer) {
+      updateStateIcon(target.suggestionContainer, 'waiting', 'Need more text...');
+    }
+    return;
+  }
+  
+  // Get suggestions
+  getSuggestionsDebounced(text, target);
+}
+
 // Handle focus events
 function handleFocus(event) {
-  console.log('handleFocus', event);
   const target = event.target;
-  if (!target.textareaIndicator) {
-    target.textareaIndicator = createTextareaIndicator(target);
-    updateIndicatorState(target, settings.enabled ? 'success' : 'disabled');
+  
+  // Check if element is a valid input element
+  if (!isValidInputElement(target)) return;
+  
+  // Create container and indicator if they don't exist
+  if (!target.suggestionContainer) {
+    target.suggestionContainer = createSuggestionContainer(target);
   }
+  if (!target.indicator) {
+    target.indicator = createTextareaIndicator(target);
+  }
+  
+  // Show indicator
+  target.indicator.style.display = 'block';
+  
+  // Update character count and check if we should show suggestions
+  updateCharCount(target);
+  
+  // Get text content
+  const text = getElementText(target);
+  
+  // Show container if text is long enough
+  if (text && text.length >= 20) {
+    target.suggestionContainer.style.display = 'block';
+  }
+}
+
+// Get suggestions with debounce
+const getSuggestionsDebounced = debounce(async function(text, target) {
+  try {
+    if (target.suggestionContainer) {
+      updateStateIcon(target.suggestionContainer, 'loading', 'Getting suggestions...');
+    }
+    
+    const suggestions = await getSuggestions(text);
+    
+    if (Array.isArray(suggestions)) {
+      // Clear previous suggestions
+      while (target.suggestionContainer.children.length > 2) { // Keep icon and char count
+        target.suggestionContainer.removeChild(target.suggestionContainer.lastChild);
+      }
+      
+      // Add new suggestions
+      suggestions.forEach(suggestion => {
+        const suggestionElement = createSuggestionElement(suggestion, target);
+        target.suggestionContainer.appendChild(suggestionElement);
+      });
+      
+      updateStateIcon(target.suggestionContainer, 'success', 'Suggestions ready');
+    } else {
+      updateStateIcon(target.suggestionContainer, 'error', suggestions); // Show error message
+    }
+  } catch (error) {
+    console.error('Error getting suggestions:', error);
+    if (target.suggestionContainer) {
+      updateStateIcon(target.suggestionContainer, 'error', 'Failed to get suggestions');
+    }
+  }
+}, 1000);
+
+// Initialize event listeners
+function init() {
+  // Remove any existing listeners
+  document.removeEventListener('input', handleInput);
+  document.removeEventListener('focus', handleFocus, true);
+  
+  // Add event listeners
+  document.addEventListener('input', handleInput);
+  document.addEventListener('focus', handleFocus, true);
+  
+  console.log('Content script initialized: Added input and focus handlers');
+}
+
+// Initialize when the DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
 }
 
 // Listen for settings updates with error handling
@@ -569,63 +694,52 @@ function isValidInputElement(element) {
 
 // Helper function to get element's text content
 function getElementText(element) {
-  if (element.tagName === 'TEXTAREA' || 
-      (element.tagName === 'INPUT' && element.type === 'text')) {
-    return element.value;
-  }
+  if (!element) return '';
 
-  // For Google Docs
-  if (element.classList.contains('kix-lineview')) {
-    const textElements = element.querySelectorAll('.kix-wordhtmlgenerator-word-node');
-    return Array.from(textElements).map(el => el.textContent).join('');
+  try {
+    if (element.tagName === 'TEXTAREA' || 
+        (element.tagName === 'INPUT' && element.type === 'text')) {
+      return element.value;
+    } else if (element.getAttribute('contenteditable') === 'true') {
+      return element.textContent;
+    } else {
+      return element.value || element.textContent || element.innerText || '';
+    }
+  } catch (error) {
+    console.error('Error getting element text:', error);
+    return '';
   }
-
-  // For Monaco editor
-  if (element.classList.contains('monaco-editor')) {
-    const lines = element.querySelectorAll('.view-line');
-    return Array.from(lines).map(line => line.textContent).join('\n');
-  }
-
-  // For contenteditable and other div-based editors
-  return element.textContent || element.innerText || '';
 }
 
 // Helper function to set element's text content
 function setElementText(element, text) {
-  if (element.tagName === 'TEXTAREA' || 
-      (element.tagName === 'INPUT' && element.type === 'text')) {
-    element.value = text;
-    return;
-  }
+  if (!element) return;
 
-  // For Google Docs (readonly, can't set text)
-  if (element.classList.contains('kix-lineview')) {
-    console.warn('Cannot set text in Google Docs editor');
-    return;
-  }
-
-  // For Monaco editor (readonly, can't set text)
-  if (element.classList.contains('monaco-editor')) {
-    console.warn('Cannot set text in Monaco editor');
-    return;
-  }
-
-  // For contenteditable and other div-based editors
-  if (element.getAttribute('contenteditable') === 'true') {
-    element.textContent = text;
-  } else {
-    // Try to set text content in the most compatible way
-    if ('value' in element) {
+  try {
+    if (element.tagName === 'TEXTAREA' || 
+        (element.tagName === 'INPUT' && element.type === 'text')) {
       element.value = text;
-    } else if ('textContent' in element) {
+    } else if (element.getAttribute('contenteditable') === 'true') {
       element.textContent = text;
     } else {
-      element.innerText = text;
+      // Try multiple approaches to set text
+      if ('value' in element) {
+        element.value = text;
+      } else if ('textContent' in element) {
+        element.textContent = text;
+      } else {
+        element.innerText = text;
+      }
     }
-  }
 
-  // Dispatch input event to trigger any listeners
-  element.dispatchEvent(new Event('input', { bubbles: true }));
+    // Trigger multiple events to ensure change is registered
+    const events = ['input', 'change', 'keyup'];
+    events.forEach(eventType => {
+      element.dispatchEvent(new Event(eventType, { bubbles: true }));
+    });
+  } catch (error) {
+    console.error('Error setting element text:', error);
+  }
 }
 
 // Handle text area input with error handling
